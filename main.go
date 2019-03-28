@@ -38,9 +38,15 @@ func main() {
 
 	r := io.Reader(f)
 	node := Parse(r)
-	fmt.Println("Pretty Print:")
-	fmt.Println(node.ToString())
-	fmt.Println("Regular Print:")
-	fmt.Println(node)
+	node.ToString()
+	// fmt.Println("Pretty Print:")
+	// fmt.Println(node.ToString())
+	// fmt.Println("Regular Print:")
+	// fmt.Println(node)
+
+	file, error := os.Open("data/test.css")
+	check(error)
+	ParseCSS(file)
+	// fmt.Println(sheet)
 
 }
