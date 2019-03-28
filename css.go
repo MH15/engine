@@ -46,16 +46,16 @@ const (
 // Declaration is one style line in CSS
 type Declaration struct {
 	name  string
-	value Value
+	value string
 }
 
 // Value holds the value of the style line
-type Value struct {
-	valueType Values
-	keyword   string
-	number    float32
-	color     Color
-}
+// type Value struct {
+// 	valueType Values
+// 	keyword   string
+// 	number    float32
+// 	color     Color
+// }
 
 // Color holds an RGB color value
 type Color struct {
@@ -123,19 +123,25 @@ func parseRule(buf *bufio.Reader) Rule {
 func parseSelectors(buf *bufio.Reader) []Selector {
 	selectors := []Selector{}
 	for {
-
-		fmt.Println("~~~~ Parsing Selector ~~")
-		selectors = append(selectors, parseSimpleSelector(buf))
+		simpleSelector := parseSimpleSelector(buf)
+		selectors = append(selectors, simpleSelector)
 		consumeWhitespace(buf)
 
 		if nextChar(buf) == ',' {
 			buf.ReadRune()
 			consumeWhitespace(buf)
 		}
+
 		if nextChar(buf) == '{' {
+			buf.ReadRune()
+			consumeWhitespace(buf)
+
 			break
 		}
 	}
+
+	fmt.Print("Selectors: ")
+	fmt.Println(selectors)
 	return selectors
 	// TODO: specificity
 }
@@ -146,25 +152,20 @@ func parseSimpleSelector(buf *bufio.Reader) Selector {
 	for {
 		char := nextChar(buf)
 		if char == '#' {
-			fmt.Println("~~~~~~ Parsed # ~~")
+			// fmt.Println("~~~~~~ Parsed # ~~")
 			buf.ReadRune()
 			selector.id = parseIdentifier(buf)
 		} else if unicode.IsLetter(char) || unicode.IsNumber(char) {
-
 			selector.tagName = parseIdentifier(buf)
 			fmt.Println("tagName: '" + selector.tagName + "'")
 
 		} else if char == '.' {
-			fmt.Println("~~~~~~ Parsed . ~~")
+			// fmt.Println("~~~~~~ Parsed . ~~")
 			buf.ReadRune()
 			selector.class = append(selector.class, parseIdentifier(buf))
 		} else if char == '*' {
-			fmt.Println("~~~~~~ Parsed * ~~")
+			// fmt.Println("~~~~~~ Parsed * ~~")
 			buf.ReadRune()
-		} else if validIdentifierChar(char) {
-			// fmt.Println("~~~~~~ Parsed tag name ~~")
-			// selector.tagName = parseIdentifier(buf)
-			// fmt.Println("~~~~~~ '" + selector.tagName + "' ~~")
 		} else {
 			break
 		}
@@ -200,20 +201,39 @@ func parseSimpleSelector(buf *bufio.Reader) Selector {
 		// 	}
 		// }
 	}
-	return Selector{}
+	return selector
 }
 
 // Parse a list of declarations enclosed in `{ ... }`.
 func parseDeclarations(buf *bufio.Reader) []Declaration {
+
 	declarations := []Declaration{}
 	for {
+
 		consumeWhitespace(buf)
 
+		// fmt.Println(string(nextChar(buf)))
 		if nextChar(buf) == '}' {
+			fmt.Println("found: '" + string(nextChar(buf)) + "'")
+			buf.ReadRune()
+			fmt.Println("found: '" + string(nextChar(buf)) + "'")
+			panic("ok")
 			buf.ReadRune()
 			break
 		}
+
 		declarations = append(declarations, parseDeclaration(buf))
+		fmt.Println(declarations)
+		consumeWhitespace(buf)
+
+		declarations = append(declarations, parseDeclaration(buf))
+
+		fmt.Println(declarations)
+
+		fmt.Println("found: '" + string(nextChar(buf)) + "'")
+		buf.ReadRune()
+		fmt.Println("found: '" + string(nextChar(buf)) + "'")
+		panic("ok")
 	}
 	return declarations
 }
@@ -222,22 +242,25 @@ func parseDeclarations(buf *bufio.Reader) []Declaration {
 func parseDeclaration(buf *bufio.Reader) Declaration {
 	declaration := Declaration{}
 
-	fmt.Println("found: '" + string(nextChar(buf)) + "'")
-	buf.ReadRune()
-	fmt.Println("found: '" + string(nextChar(buf)) + "'")
-	panic("ok")
-
-	fmt.Println("loop test b")
 	propertyName := parseIdentifier(buf)
+	fmt.Println("   propertyName: '" + propertyName + "'")
 	value := ""
 	consumeWhitespace(buf)
 	if nextChar(buf) == ':' {
+		buf.ReadRune()
 		consumeWhitespace(buf)
 		value = parseIdentifier(buf) // TODO: make parseValue
+		fmt.Println("   value: '" + value + "'")
+
 		consumeWhitespace(buf)
+
+		fmt.Println("yee: " + string(nextChar(buf)))
+
 		if nextChar(buf) == ';' {
+
+			buf.ReadRune()
 			declaration.name = propertyName
-			declaration.value = Value{keyword: value}
+			declaration.value = value
 		}
 	}
 
@@ -249,11 +272,10 @@ func parseDeclaration(buf *bufio.Reader) Declaration {
 type ConsumeCondition func(rune) bool
 
 // Parse a property name or keyword
-func parseIdentifier(buf *bufio.Reader) string {
+func parseValue(buf *bufio.Reader) string {
 	// fmt.Println("loop test a")
 	// return consumeWhile(buf, validIdentifierChar)
 	result := ""
-
 	for {
 		if char, size, err := buf.ReadRune(); err != nil {
 			Use(string(size))
@@ -265,7 +287,7 @@ func parseIdentifier(buf *bufio.Reader) string {
 			}
 		} else {
 			// || char == '_' || char == '-'
-			if unicode.IsLetter(char) || unicode.IsNumber(char) {
+			if unicode.IsNumber(char) || char == '#' {
 				// log.Println("YEET")
 				result += string(char)
 			} else {
@@ -275,61 +297,29 @@ func parseIdentifier(buf *bufio.Reader) string {
 			}
 		}
 	}
-
 	buf.UnreadRune()
-
-	// fmt.Println("string: " + result)
 	return result
+}
+
+// Parse a property name or keyword
+func parseIdentifier(buf *bufio.Reader) string {
+	return consumeWhile(buf, func(r rune) bool {
+		return unicode.IsLetter(r) || unicode.IsNumber(r) || r == '_' || r == '-'
+	})
 }
 
 // Consume and discard zero or more whitespace characters.
 func consumeWhitespace(buf *bufio.Reader) {
-	// consumeWhile(buf, isWhitespace)
-	// fmt.Println("loop test a")
-	// return consumeWhile(buf, validIdentifierChar)
-
-	for {
-		if unicode.IsSpace(nextChar(buf)) || unicode.IsControl(nextChar(buf)) {
-			buf.ReadByte()
-		} else {
-			break
-		}
-
-	}
-
-	// result := ""
-	// for {
-	// 	if char, size, err := buf.ReadRune(); err != nil {
-	// 		Use(string(size))
-	// 		if err == io.EOF {
-	// 			fmt.Println("EOFFFFF")
-	// 			break
-	// 		} else {
-	// 			log.Fatal(err)
-	// 		}
-	// 	} else {
-	// 		// fmt.Println("char: " + string(char))
-	// 		// buf.UnreadRune()
-	// 		if isWhitespace(char) {
-	// 			result += string(char)
-	// 		} else {
-	// 			// buf.UnreadRune()
-	// 			// fmt.Println("what")
-	// 			break
-	// 		}
-	// 	}
-	// }
-
-	// fmt.Println("whitespace: '" + result + "'")
-	// return result
+	consumeWhile(buf, func(r rune) bool {
+		return unicode.IsSpace(r) || unicode.IsControl(r)
+	})
 }
 
 // Consume characters until `test` returns false.
 func consumeWhile(buf *bufio.Reader, condition ConsumeCondition) string {
 	result := ""
 	for {
-		if char, size, err := buf.ReadRune(); err != nil {
-			Use(string(size))
+		if char, err := nextCharAdv(buf); err != nil {
 			if err == io.EOF {
 				fmt.Println("EOFFFFF")
 				break
@@ -337,27 +327,20 @@ func consumeWhile(buf *bufio.Reader, condition ConsumeCondition) string {
 				log.Fatal(err)
 			}
 		} else {
-			// fmt.Println("char: " + string(char))
-			// buf.UnreadRune()
-			if !condition(char) {
-				buf.UnreadRune()
-				fmt.Println("CONDITION NOT MET")
-				break
-			} else {
+			if condition(char) {
+				buf.ReadRune()
 				result += string(char)
+			} else {
+				break
 			}
 		}
 	}
 	return result
 }
 
-func validIdentifierChar(r rune) bool {
-	return !(unicode.IsLetter(r) || unicode.IsNumber(r) || r == '_' || r == '-')
-}
-
-// isWhitespace is a function tells you if a rune is a whitespace character or not; it accounts for all 26 UNICODE whitespace characters.
+// isWhitespace2 is a function tells you if a rune is a whitespace character or not; it accounts for all 26 UNICODE whitespace characters.
 // @author: https://github.com/reiver/go-whitespace
-func isWhitespace(r rune) bool {
+func isWhitespace2(r rune) bool {
 
 	result := false
 
